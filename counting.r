@@ -2,7 +2,7 @@ library(data.table)
 library(sf)
 library(ggplot2)
 setwd("/media/huijieqiao/WD10T_12/winner.loser.fauna/winner.loser.fauna")
-group<-"Amphibia"
+group<-"Reptilia"
 #taxa<-readRDS(sprintf("/media/huijieqiao/WD10T_12/datasets_harvest/GBIF/202207/Taxa/%s.rda", group))
 
 base<-"/media/huijieqiao/WD10T_12/datasets_harvest/GBIF/202207/RAW"
