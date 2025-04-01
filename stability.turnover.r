@@ -11,7 +11,7 @@ library(terra)
 setwd("/media/huijieqiao/WD10T_12/winner.loser.fauna/winner.loser.fauna")
 crs_america<-"+proj=laea +lat_0=30 +lon_0=-120 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs"
 
-res<-10
+res<-100
 window_size<-1
 target<-sprintf("../Data/Loss.Gain/%s/res.%d_window.%d.rda",
                 "ALL", res, window_size)
@@ -32,7 +32,7 @@ if (window_size==1){
   lc_all<-lc_all[, c("grid_id", "res", "ALL_N", "year", "window_size", "Change_ratio_ALL")]
 }
 sf_usa<-merge(sf, lc_all[year==2020], by.x="seqnum", by.y="grid_id")
-ggplot(sf_usa)+geom_sf()
+#ggplot(sf_usa)+geom_sf()
 
 colnames(lc_all)[c(1, 4)]<-c("grid_index", "Year")
 
@@ -91,10 +91,7 @@ kdf_df<-data.table(sf_all[which(sf_all$group=="Aves"),])
 kdf_df$geometry<-NULL
 
 kdf_df <- st_as_sf(kdf_df, coords = c("lon", "lat"), crs = 4326) 
-meuse <- st_as_sf(meuse, coords = c("x", "y"), crs = 4326, 
-                  agr = "constant") 
-cadmium.kde.500 <- sf.kde(x = meuse, y = meuse$cadmium, res=40, 
-                          bw = 500, standardize = TRUE)
+
 kde_result <- sp.kde(x=kdf_df, y=kdf_df$SP_Jaccard, standardize = T, 
                      res=0.05) 
 plot(kde_result)
