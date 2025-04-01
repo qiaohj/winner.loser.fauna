@@ -75,9 +75,13 @@ if (F){
     setorderv(dfdf_large_full, c("LC", "grid_id", "year"))
     dfdf_large_full$N_Diff<-abs(dfdf_large_full$N-dfdf_large_full$Prev_N)
     
-    dfdf_large_full[, Change_ratio_LC := (N - Prev_N) / N, by = .(grid_id, LC, year, res, ALL_N)]
+    dfdf_large_full[, Change_ratio_LC := (N - Prev_N) / ALL_N, by = .(grid_id, LC, year, res, ALL_N)]
+    #dfdf_large_full[Change_ratio_LC>=0.5]
     dfdf_all<-dfdf_large_full[, .(N_Diff=sum(N_Diff)), by=list(grid_id, year, res, ALL_N)]
     dfdf_all[, Change_ratio_ALL := N_Diff / ALL_N, by = .(grid_id, year, res, ALL_N)]
+    #hist(dfdf_all$Change_ratio_ALL)
+    #dfdf_all[Change_ratio_ALL>1]
+    
     setorderv(dfdf_large_full, c("grid_id", "year", "LC"))
     saveRDS(dfdf_large_full, sprintf("../Data/LandCover/Change/by_LC.window_1.%dkm.rda", res))
     saveRDS(dfdf_all, sprintf("../Data/LandCover/Change/ALL.window_1.%dkm.rda", res))
@@ -87,7 +91,7 @@ if (F){
       ddd_lc<-list()
       ddd_all<-list()
       while (from_y<=to_y) {
-        print(paste(res, from_y))
+        print(paste(res, from_y, window_size))
         item<-dfdf_large_full[between(year, from_y-4, from_y)]
         item<-item[, .(year=from_y, window_size=window_size,
                        Change_ratio_LC=sum(Change_ratio_LC),

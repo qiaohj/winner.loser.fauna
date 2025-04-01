@@ -115,13 +115,13 @@ if (F){
   }
   
 }
-for (res in c(10)){
+for (res in c(10, 20, 50, 100)){
   print(res)
   group<-"ALL"
   target_df<-readRDS(sprintf("../Data/Target_Area/American_Land_%s_%dkm.rda", group, res))
-  target_df<-target_df[between(year, 1950, 2019)]
-  Count<-target_df[, .(N_OCC=sum(N_OCC), N_SP=length(unique(species))),
-                   by=list(year, group)]
+  target_df<-target_df[between(year, 1985, 2019)]
+  #Count<-target_df[, .(N_OCC=sum(N_OCC), N_SP=length(unique(species))),
+  #                 by=list(year, group)]
   
   
   if (F){
@@ -256,7 +256,7 @@ for (res in c(10)){
     if (file.exists(target)){
       next()
     }
-    years<-c(1900:2022)
+    years<-c(1985:2019)
     y<-years[1]
     result_list<-list()
     for (y in years){

@@ -5,34 +5,169 @@ library(necountries)
 library(units)
 library(ggh4x)
 library(ggnewscale)
+library(ks)
+library(spatialEco)
+library(terra)
 setwd("/media/huijieqiao/WD10T_12/winner.loser.fauna/winner.loser.fauna")
+crs_america<-"+proj=laea +lat_0=30 +lon_0=-120 +x_0=0 +y_0=0 +ellps=GRS80 +units=m +no_defs"
 
-res<-100
-window_size<-5
+res<-10
+window_size<-1
 target<-sprintf("../Data/Loss.Gain/%s/res.%d_window.%d.rda",
                 "ALL", res, window_size)
+sf<-read_sf(sprintf("../Shape/target_grids/target_grids_%dkm.shp", res))
+
 lc_lc<-readRDS(sprintf("../Data/LandCover/Change/by_LC.window_%d.%dkm.rda", window_size, res))
+table(lc_lc$year)
+range(sf$seqnum)
+range(lc_lc$grid_id)
+
+sf_usa<-merge(sf, lc_lc[LC==1 & year==2020], by.x="seqnum", by.y="grid_id")
+ggplot(sf_usa)+geom_sf()
+
 lc_all<-readRDS(sprintf("../Data/LandCover/Change/ALL.window_%d.%dkm.rda", window_size, res))
+if (window_size==1){
+  lc_all$window_size<-window_size
+  lc_all$N_Diff<-NULL
+  lc_all<-lc_all[, c("grid_id", "res", "ALL_N", "year", "window_size", "Change_ratio_ALL")]
+}
+sf_usa<-merge(sf, lc_all[year==2020], by.x="seqnum", by.y="grid_id")
+ggplot(sf_usa)+geom_sf()
 
 colnames(lc_all)[c(1, 4)]<-c("grid_index", "Year")
+
+lc_all_sum<-lc_all[, .(Change_ratio_ALL==sum(Change_ratio_ALL)),
+                   by=list(grid_index, res, ALL_N, window_size)]
+
+
 result_list<-readRDS(target)
 
-result_list_with_lc<-merge(result_list, lc_all, by=c("Year", "grid_index"))
 
-glm(data=result_list_with_lc, SP_LOSS_RATE~Change_ratio_ALL+group)
+setindex(result_all, "grid_index")
 
-p1<-ggplot(result_list_with_lc[group %in% c("Aves", "Apidae", "Mammalia")])+
+
+result_list_with_year<-merge(result_list, lc_all, by=c("Year", "grid_index"))
+
+result_all<-result_list_with_year[group %in% c("Aves", "Apidae", "Mammalia") & 
+                                  between(Year, 1986, 2019), 
+                        .(N=.N, 
+                          SP_LOSS_RATE=mean(SP_LOSS_RATE),
+                          SP_GAIN_RATE=mean(SP_GAIN_RATE),
+                          SP_Jaccard=mean(SP_Jaccard),
+                          Change_ratio_ALL=mean(Change_ratio_ALL)
+                        ),
+                        by=list(group, grid_index, ALL_SP)]
+sf_all<-merge(sf, result_all[group %in% c("Aves", "Apidae", "Mammalia")], 
+              by.x="seqnum", by.y="grid_index")
+sf_with_year<-merge(sf, result_list_with_year[group %in% c("Aves", "Apidae", "Mammalia")], 
+                  by.x="seqnum", by.y="grid_index")
+
+
+result_list_with_year[Change_ratio_ALL>1]
+cor(sf_all$SP_Jaccard, sf_all$Change_ratio_ALL)
+ggplot(sf_all)+geom_point(aes(x=Change_ratio_ALL, y=SP_LOSS_RATE, size=ALL_SP), alpha=0.2, shape=1)+
+  facet_wrap(~group)
+ggplot(sf_all)+geom_point(aes(x=Change_ratio_ALL, y=SP_GAIN_RATE, size=ALL_SP), alpha=0.2, shape=1)+
+  facet_wrap(~group)
+ggplot(sf_all)+geom_point(aes(x=Change_ratio_ALL, y=SP_Jaccard, size=ALL_SP), alpha=0.2, shape=1)+
+  facet_wrap(~group)
+
+
+ggplot(sf_with_year)+geom_point(aes(x=Change_ratio_ALL, y=SP_Jaccard, size=ALL_SP), alpha=0.2, shape=1)+
+  facet_grid(~group)
+
+ggplot(sf_all[which(sf_all$group=="Aves"),])+
+  geom_sf(aes(fill=SP_Jaccard), color=NA)+
+  coord_sf(crs = st_crs(crs_america))+
+  facet_grid(~group)+
+  scale_fill_gradient2(
+    low = "#0072B2",
+    mid = "white", 
+    high = "#CC79A7",
+    midpoint = 0.4
+  )+theme_bw()
+
+kdf_df<-data.table(sf_all[which(sf_all$group=="Aves"),])
+kdf_df$geometry<-NULL
+
+kdf_df <- st_as_sf(kdf_df, coords = c("lon", "lat"), crs = 4326) 
+meuse <- st_as_sf(meuse, coords = c("x", "y"), crs = 4326, 
+                  agr = "constant") 
+cadmium.kde.500 <- sf.kde(x = meuse, y = meuse$cadmium, res=40, 
+                          bw = 500, standardize = TRUE)
+kde_result <- sp.kde(x=kdf_df, y=kdf_df$SP_Jaccard, standardize = T, 
+                     res=0.05) 
+plot(kde_result)
+kdf_df<-sf_all[which(sf_all$group=="Aves"),]
+kdf_df$KDE<-extract(kde_result, data.frame(x=kdf_df$lon, y=kdf_df$lat), ID=F)$z
+cor(kdf_df$KDE, kdf_df$Change_ratio_ALL)
+
+ppp<-as.data.table(kde_result, xy=T)
+ggplot(kdf_df)+
+  geom_sf(aes(fill=SP_Jaccard), color=NA)+
+  coord_sf(crs = st_crs(crs_america))+
+  facet_grid(~group)+
+  scale_fill_gradient2(
+    low = "#0072B2",
+    mid = "white", 
+    high = "#CC79A7",
+    midpoint = 0.4
+  )+theme_bw()
+
+ggplot(kdf_df[which(kdf_df$group=="Aves" & kdf_df$Change_ratio_ALL<0.1),])+
+  geom_sf(aes(fill=Change_ratio_ALL), color=NA)+
+  coord_sf(crs = st_crs(crs_america))+
+  facet_grid(~group)+
+  scale_fill_gradient2(
+    low = "#0072B2",
+    mid = "white", 
+    high = "#CC79A7",
+    midpoint = 0.01
+  )+theme_bw()
+
+ggplot(kdf_df)+
+  geom_sf(aes(fill=KDE), color=NA)+
+  coord_sf(crs = st_crs(crs_america))+
+  facet_grid(~group)+
+  scale_fill_gradient2(
+    low = "#0072B2",
+    mid = "white", 
+    high = "#CC79A7",
+    midpoint = 5000
+  )+theme_bw()
+
+ggplot(sf_all[which(sf_all$group=="Aves"),], 
+       aes(x=lon, y=lat, weight=SP_Jaccard))+
+  geom_density_2d(aes(color = ..level..), 
+                  geom = "tile", 
+                  contour = FALSE)
+  
+  coord_sf(crs = st_crs(crs_america))+
+  facet_grid(~group)+
+  scale_fill_gradient2(
+    low = "#0072B2",
+    mid = "white", 
+    high = "#CC79A7",
+    midpoint = 0.4
+  )+theme_bw()
+
+
+result_list_with_lc_sampled<-result_list_with_lc[sample(nrow(result_list_with_lc), 1e4)]
+#glm(data=result_list_with_lc, SP_LOSS_RATE~Change_ratio_ALL+group)
+
+p1<-ggplot(result_list_with_lc_sampled[group %in% c("Aves", "Apidae", "Mammalia")])+
   geom_point(aes(x=Change_ratio_ALL, y=SP_LOSS_RATE, size=N_SP_Curr), shape=1, alpha=0.2)+
+  #scale_x_log10()+
   facet_wrap(~group, nrow=1)
 
 p1
-p2<-ggplot(result_list_with_lc[group %in% c("Aves", "Apidae", "Mammalia")])+
+p2<-ggplot(result_list_with_lc_sampled[group %in% c("Aves", "Apidae", "Mammalia")])+
   geom_point(aes(x=Change_ratio_ALL, y=SP_GAIN_RATE, size=N_SP_Curr), shape=1, alpha=0.2)+
   facet_wrap(~group, nrow=1)
 
 p2
 
-p3<-ggplot(result_list_with_lc[group %in% c("Aves", "Apidae", "Mammalia")])+
+p3<-ggplot(result_list_with_lc_sampled[group %in% c("Aves", "Apidae", "Mammalia")])+
   geom_point(aes(x=Change_ratio_ALL, y=SP_Jaccard, size=N_SP_Curr), shape=1, alpha=0.2)+
   #scale_x_log10()+
   facet_wrap(~group, nrow=1)
